@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"log"
 	"net/http"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Node struct {
@@ -44,7 +45,7 @@ func (c *Coordinator) addNode(address string) {
 	h := hashKey(address)
 	c.nodes[h] = Node{Address: address}
 	c.rebuildHashRing()
-	log.Printf("Added node: %s (hash: %d)", address, h)
+	logrus.Infof("Added node: %s (hash: %d)", address, h)
 }
 
 func (c *Coordinator) removeNode(address string) {
@@ -54,7 +55,7 @@ func (c *Coordinator) removeNode(address string) {
 	h := hashKey(address)
 	delete(c.nodes, h)
 	c.rebuildHashRing()
-	log.Printf("Removed node: %s", address)
+	logrus.Infof("Removed node: %s", address)
 }
 
 func (c *Coordinator) rebuildHashRing() {
@@ -98,7 +99,7 @@ func (c *Coordinator) healthCheckLoop() {
 			}
 			resp, err := client.Get(url)
 			if err != nil || resp.StatusCode != http.StatusOK {
-				log.Printf("Health check failed for node %s, removing it", node.Address)
+				logrus.Warnf("Health check failed for node %s, removing it", node.Address)
 				c.removeNode(node.Address)
 			} else {
 				io.Copy(io.Discard, resp.Body)
@@ -137,6 +138,6 @@ func (c *Coordinator) whereHandler(w http.ResponseWriter, r *http.Request) {
 func (c *Coordinator) Start(port string) {
 	http.HandleFunc("/register", c.registerHandler)
 	http.HandleFunc("/where", c.whereHandler)
-	log.Printf("Coordinator running on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	logrus.Infof("Coordinator running on port %s", port)
+	logrus.Fatal(http.ListenAndServe(":"+port, nil))
 }
