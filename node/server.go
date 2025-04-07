@@ -2,14 +2,12 @@ package node
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 )
 
 type Server struct {
 	cache *Cache
-	// You can add configuration details, such as port number, etc.
 }
 
 func NewServer() *Server {
@@ -42,12 +40,18 @@ func (s *Server) getHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Key not found or expired", http.StatusNotFound)
 		return
 	}
-	fmt.Fprintln(w, value)
+	w.Write([]byte(value + "\n"))
+}
+
+func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
 }
 
 func (s *Server) Start(port string) {
 	http.HandleFunc("/set", s.setHandler)
 	http.HandleFunc("/get", s.getHandler)
+	http.HandleFunc("/health", s.healthHandler)
 	log.Printf("Cache node running on port %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
