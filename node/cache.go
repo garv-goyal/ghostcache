@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"log"
+	// "sort"
 	"sync"
 	"time"
 )
@@ -93,6 +94,53 @@ func (c *Cache) Get(key string) (string, bool) {
 		c.evictionList.MoveToFront(item.lruElement)
 	}
 	return item.Value, true
+}
+
+func (c *Cache) Delete(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if item, exists := c.store[key]; exists {
+		delete(c.store, key)
+		if c.evictionPolicy == "LRU" && item.lruElement != nil {
+			c.evictionList.Remove(item.lruElement)
+		}
+		return true
+	}
+	return false
+}
+
+func (c *Cache) UpdateTTL(key string, newTTL time.Duration) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	item, exists := c.store[key]
+	if !exists {
+		return false
+	}
+	item.ExpiresAt = time.Now().Add(newTTL)
+	return true
+}
+
+func (c *Cache) Stats() map[string]interface{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	stats := make(map[string]interface{})
+	stats["total_keys"] = len(c.store)
+	count := len(c.store)
+	totalRemaining := time.Duration(0)
+	now := time.Now()
+	for _, item := range c.store {
+		remaining := item.ExpiresAt.Sub(now)
+		if remaining < 0 {
+			remaining = 0
+		}
+		totalRemaining += remaining
+	}
+	if count > 0 {
+		stats["avg_ttl_seconds"] = totalRemaining.Seconds() / float64(count)
+	} else {
+		stats["avg_ttl_seconds"] = 0
+	}
+	return stats
 }
 
 func (c *Cache) evictLRU() {

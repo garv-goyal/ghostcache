@@ -1,81 +1,42 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"os"
-	"strings"
+    "fmt"
+    "log"
+    "time"
+
+    "github.com/garv-goyal/ghostcache/clientlib"
 )
 
 func main() {
-	coordinatorURL := "http://localhost:9000"
-	key := "foo"
-	value := "bar"
+	gc := clientlib.NewGhostCacheClient("http://localhost:9000")
 
-	// Set key
-	err := setKey(coordinatorURL, key, value)
+	if err := gc.Set("testkey", "testvalue"); err != nil {
+		log.Fatalf("Set error: %v", err)
+	}
+	fmt.Println("Set successful")
+
+	val, err := gc.Get("testkey")
 	if err != nil {
-		fmt.Println("Set error:", err)
-		os.Exit(1)
+		log.Fatalf("Get error: %v", err)
 	}
+	fmt.Println("Got value:", val)
 
-	// Get key
-	val, err := getKey(coordinatorURL, key)
+	if err := gc.UpdateTTL("testkey", 30); err != nil {
+		log.Fatalf("UpdateTTL error: %v", err)
+	}
+	fmt.Println("TTL updated")
+
+	stats, err := gc.Stats("testkey")
 	if err != nil {
-		fmt.Println("Get error:", err)
-		os.Exit(1)
+		log.Fatalf("Stats error: %v", err)
 	}
+	fmt.Println("Stats:", stats)
 
-	fmt.Printf("Got value for key '%s': %s\n", key, val)
-}
-
-func setKey(coordinatorURL, key, value string) error {
-	nodeURL, err := lookupNode(coordinatorURL, key)
-	if err != nil {
-		return err
+	if err := gc.Delete("testkey"); err != nil {
+		log.Fatalf("Delete error: %v", err)
 	}
+	fmt.Println("Key deleted")
 
-	payload := map[string]string{
-		"key":   key,
-		"value": value,
-	}
-	body, _ := json.Marshal(payload)
-
-	resp, err := http.Post(nodeURL+"/set", "application/json", bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return nil
-}
-
-func getKey(coordinatorURL, key string) (string, error) {
-	nodeURL, err := lookupNode(coordinatorURL, key)
-	if err != nil {
-		return "", err
-	}
-
-	resp, err := http.Get(fmt.Sprintf("%s/get?key=%s", nodeURL, key))
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	return string(body), nil
-}
-
-func lookupNode(coordinatorURL, key string) (string, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/where?key=%s", coordinatorURL, key))
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	return strings.TrimSpace(string(body)), nil
+	time.Sleep(2 * time.Second)
 }
