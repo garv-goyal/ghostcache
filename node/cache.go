@@ -4,10 +4,10 @@ import (
 	"container/list"
 	"encoding/json"
 	"os"
-	"log"
-	// "sort"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Item struct {
@@ -151,7 +151,7 @@ func (c *Cache) evictLRU() {
 	key := elem.Value.(string)
 	delete(c.store, key)
 	c.evictionList.Remove(elem)
-	log.Printf("Evicted key %s due to LRU policy", key)
+	logrus.Infof("Evicted key %s due to LRU policy", key)
 }
 
 func (c *Cache) cleanupExpiredItems() {
@@ -177,24 +177,24 @@ func (c *Cache) cleanupExpiredItems() {
 func (c *Cache) persistToDisk() {
 	data, err := json.Marshal(c.store)
 	if err != nil {
-		log.Println("Error marshalling cache for persistence:", err)
+		logrus.Error("Error marshalling cache for persistence:", err)
 		return
 	}
 	err = os.WriteFile(c.persistenceFile, data, 0644)
 	if err != nil {
-		log.Println("Error writing cache to disk:", err)
+		logrus.Error("Error writing cache to disk:", err)
 	}
 }
 
 func (c *Cache) loadFromDisk() {
 	data, err := os.ReadFile(c.persistenceFile)
 	if err != nil {
-		log.Println("No persistence file found, starting fresh.")
+		logrus.Info("No persistence file found, starting fresh.")
 		return
 	}
 	err = json.Unmarshal(data, &c.store)
 	if err != nil {
-		log.Println("Error unmarshalling persistence file:", err)
+		logrus.Error("Error unmarshalling persistence file:", err)
 	}
 	if c.evictionPolicy == "LRU" {
 		c.evictionList = list.New()

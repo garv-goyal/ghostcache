@@ -2,10 +2,11 @@ package node
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
-	// "strings"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/sirupsen/logrus"
 )
 
 type Response struct {
@@ -105,6 +106,7 @@ func (s *Server) Start(port string) {
 	http.HandleFunc("/updateTTL", s.updateTTLHandler)
 	http.HandleFunc("/stats", s.statsHandler)
 	http.HandleFunc("/health", s.healthHandler)
-	log.Printf("Cache node running on port %s", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	http.Handle("/metrics", promhttp.Handler())
+	logrus.Infof("Cache node running on port %s", port)
+	logrus.Fatal(http.ListenAndServe(":"+port, nil))
 }
