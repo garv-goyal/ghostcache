@@ -57,9 +57,6 @@ func (c *Cache) Set(key, value string) {
 		item.Value = value
 		item.ExpiresAt = now.Add(c.baseTTL)
 		item.Hits = 0
-		if c.evictionPolicy == "LRU" && item.lruElement != nil {
-			c.evictionList.MoveToFront(item.lruElement)
-		}
 	} else {
 		item := &Item{
 			Value:     value,
@@ -67,6 +64,7 @@ func (c *Cache) Set(key, value string) {
 			Hits:      0,
 		}
 		c.store[key] = item
+		TotalKeys.Inc()
 		if c.evictionPolicy == "LRU" {
 			elem := c.evictionList.PushFront(key)
 			item.lruElement = elem
@@ -82,6 +80,7 @@ func (c *Cache) Get(key string) (string, bool) {
 	item, exists := c.store[key]
 	c.mu.RUnlock()
 	if !exists || time.Now().After(item.ExpiresAt) {
+		CacheMisses.Inc()
 		return "", false
 	}
 	c.mu.Lock()
@@ -89,10 +88,12 @@ func (c *Cache) Get(key string) (string, bool) {
 	item.Hits++
 	if item.Hits%c.hitThreshold == 0 {
 		item.ExpiresAt = item.ExpiresAt.Add(c.ttlIncrement)
+		TTLUpdates.Inc()
 	}
 	if c.evictionPolicy == "LRU" && item.lruElement != nil {
 		c.evictionList.MoveToFront(item.lruElement)
 	}
+	CacheHits.Inc()
 	return item.Value, true
 }
 
@@ -101,6 +102,7 @@ func (c *Cache) Delete(key string) bool {
 	defer c.mu.Unlock()
 	if item, exists := c.store[key]; exists {
 		delete(c.store, key)
+		TotalKeys.Dec()
 		if c.evictionPolicy == "LRU" && item.lruElement != nil {
 			c.evictionList.Remove(item.lruElement)
 		}
@@ -117,6 +119,7 @@ func (c *Cache) UpdateTTL(key string, newTTL time.Duration) bool {
 		return false
 	}
 	item.ExpiresAt = time.Now().Add(newTTL)
+	TTLUpdates.Inc()
 	return true
 }
 
